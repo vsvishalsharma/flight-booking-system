@@ -15,13 +15,13 @@ Docker must be running. Testcontainers spins up a PostgreSQL 16 container automa
 **Expected output**
 
 ```
-Tests run: 27, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 29, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
 ---
 
-### Unit Tests (23 tests)
+### Unit Tests (24 tests)
 
 All unit tests use Mockito strict stubbing. No database or Spring context is started.
 
@@ -31,7 +31,7 @@ All unit tests use Mockito strict stubbing. No database or Spring context is sta
 |------|-----------------|
 | `search_returnsExistingInstances_whenInstancesExistForDate` | Returns existing FlightInstances without creating new ones |
 | `search_createsFlightInstanceLazily_whenNoInstanceExistsForDate` | Creates snapshot with correct departure time, fare, seat count when none exists |
-| `search_snapshotIsImmutable_laterFlightChangesDoNotAffectExistingInstance` | Existing instance retains original schedule after Flight row is mutated |
+| `search_existingFlightInstance_departureTimeFrozenAtSnapshotCreation` | Existing instance retains original schedule after Flight row is mutated; asserts response ≠ updated Flight value |
 | `search_throwsResourceNotFoundException_whenSourceAirportNotFound` | Invalid source code throws ResourceNotFoundException |
 | `search_throwsResourceNotFoundException_whenDestinationAirportNotFound` | Invalid destination code throws ResourceNotFoundException |
 | `search_returnsEmptyList_whenNoFlightsExistOnRoute` | No flights on route returns empty list |
@@ -57,7 +57,7 @@ All unit tests use Mockito strict stubbing. No database or Spring context is sta
 | `processPayment_idempotent_returnsSamePaymentOnDuplicateKey` | Duplicate key → existing Payment returned, gateway NOT called again |
 | `processPayment_idempotent_preservesFailedPayment` | Duplicate key for a failed payment → FAILED Payment returned, no re-charge |
 
-#### BookingServiceTest — 6 tests
+#### BookingServiceTest — 7 tests
 
 | Test | What it verifies |
 |------|-----------------|
@@ -67,10 +67,11 @@ All unit tests use Mockito strict stubbing. No database or Spring context is sta
 | `initiateBooking_throwsResourceNotFoundException_whenUserNotFound` | Invalid userId → exception before any seat logic |
 | `initiateBooking_throwsResourceNotFoundException_whenFlightInstanceNotFound` | Invalid flightInstanceId → exception before seat hold |
 | `initiateBooking_usesProvidedIdempotencyKey_forPayment` | Client X-Idempotency-Key is forwarded to PaymentService unchanged |
+| `initiateBooking_throwsSeatNotAvailableException_whenSeatBelongsToDifferentFlightInstance` | Seat from a different FlightInstance rejected with SeatNotAvailableException; no Passenger or Booking created |
 
 ---
 
-### Integration Tests (4 tests)
+### Integration Tests (5 tests)
 
 Uses Testcontainers (PostgreSQL 16). Flyway runs both migrations on each test run. Full Spring context is loaded.
 
@@ -79,6 +80,7 @@ Uses Testcontainers (PostgreSQL 16). Flyway runs both migrations on each test ru
 | `fullBookingFlow_searchThenBook_resultsInConfirmedBooking` | End-to-end: search → book → DB state (seat BOOKED, payment SUCCESS, booking CONFIRMED, correct idempotency key stored) |
 | `searchFlight_lazyCreatesFlightInstance_whenNoneExistForDate` | Search for a date with no seeded instance triggers lazy creation; response includes the new instance |
 | `initiateBooking_returns409_whenSeatAlreadyBooked` | Booking the same seat twice returns HTTP 409 on the second request |
+| `initiateBooking_returns409_whenSeatBelongsToDifferentFlightInstance` | Seat from DEL→BOM flight instance booked against DEL→BLR instance returns HTTP 409; no booking or payment created |
 | `searchFlight_returns404_whenAirportCodeInvalid` | Search with unknown airport code returns HTTP 404 |
 
 ---

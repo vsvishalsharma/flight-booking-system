@@ -86,6 +86,7 @@
 | Seat already booked | `holdSeat_throwsSeatNotAvailableException_whenSeatIsBooked`, `initiateBooking_throwsSeatNotAvailableException_whenSeatAlreadyBooked`, `initiateBooking_returns409_whenSeatAlreadyBooked` |
 | Payment failure | `processPayment_failed_whenGatewayFails`, `initiateBooking_bookingFailed_whenPaymentFails` |
 | Duplicate payment (idempotency) | `processPayment_idempotent_returnsSamePaymentOnDuplicateKey`, `processPayment_idempotent_preservesFailedPayment`, `initiateBooking_usesProvidedIdempotencyKey_forPayment` |
-| FlightInstance snapshot behaviour | `search_snapshotIsImmutable_laterFlightChangesDoNotAffectExistingInstance`, `search_createsFlightInstanceLazily_whenNoInstanceExistsForDate`, `searchFlight_lazyCreatesFlightInstance_whenNoneExistForDate` |
+| FlightInstance snapshot behaviour | `search_existingFlightInstance_departureTimeFrozenAtSnapshotCreation`, `search_createsFlightInstanceLazily_whenNoInstanceExistsForDate`, `searchFlight_lazyCreatesFlightInstance_whenNoneExistForDate` |
+| Cross-instance seat validation | `initiateBooking_throwsSeatNotAvailableException_whenSeatBelongsToDifferentFlightInstance`, `initiateBooking_returns409_whenSeatBelongsToDifferentFlightInstance` |
 | Expired seat hold can be reclaimed | `holdSeat_success_whenHoldIsExpired` |
 | Resource not found | `search_throwsResourceNotFoundException_whenSourceAirportNotFound`, `initiateBooking_throwsResourceNotFoundException_whenUserNotFound`, `initiateBooking_throwsResourceNotFoundException_whenFlightInstanceNotFound`, `searchFlight_returns404_whenAirportCodeInvalid` |
