@@ -42,6 +42,8 @@ This will:
 3. Run Flyway migrations (schema + seed data)
 4. Start the application on port **8082**
 
+> **Ports**: The app is mapped to `8082` (not 8080) and the database to `5433` (not 5432) to avoid conflicts with common local services. Both can be changed in `docker-compose.yml` if needed.
+
 To rebuild after code changes:
 ```bash
 docker compose up --build

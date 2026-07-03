@@ -10,6 +10,7 @@ import com.flightbooking.booking.repository.BookingRepository;
 import com.flightbooking.booking.repository.PassengerRepository;
 import com.flightbooking.booking.repository.UserRepository;
 import com.flightbooking.common.exception.ResourceNotFoundException;
+import com.flightbooking.common.exception.SeatNotAvailableException;
 import com.flightbooking.flight.entity.Flight;
 import com.flightbooking.flight.entity.FlightInstance;
 import com.flightbooking.flight.repository.FlightInstanceRepository;
@@ -65,6 +66,15 @@ public class BookingService {
 
         // Step 2: Hold the seat (pessimistic lock prevents double-booking)
         Seat seat = seatService.holdSeat(request.seatId());
+
+        // Guard: seat must belong to the requested FlightInstance.
+        // Without this check a caller could pass a seatId from a different FlightInstance,
+        // causing the wrong flight's availableSeats counter to be decremented.
+        if (!seat.getFlightInstance().getId().equals(request.flightInstanceId())) {
+            throw new SeatNotAvailableException(
+                    "Seat " + seat.getSeatNumber() + " does not belong to the requested flight instance"
+            );
+        }
 
         // Step 3: Create passenger
         Passenger passenger = createPassenger(request);

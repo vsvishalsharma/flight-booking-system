@@ -203,6 +203,44 @@ class BookingIntegrationTest {
     }
 
     @Test
+    void initiateBooking_returns409_whenSeatBelongsToDifferentFlightInstance() {
+        LocalDate date = LocalDate.now().plusDays(7);
+
+        // Get a seat from the DEL→BOM flight instance (AI303)
+        ResponseEntity<ApiResponse<List<FlightInstanceResponse>>> bomSearch = restTemplate.exchange(
+                "/flights/search?source=DEL&destination=BOM&travelDate=" + date,
+                HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
+        Long bomInstanceId = bomSearch.getBody().data().get(0).flightInstanceId();
+        Long seatFromBom = seatRepository.findByFlightInstanceId(bomInstanceId).stream()
+                .filter(s -> s.getStatus() == SeatStatus.AVAILABLE)
+                .findFirst()
+                .orElseThrow()
+                .getId();
+
+        // Get the DEL→BLR flight instance (AI202) — a different flight instance
+        ResponseEntity<ApiResponse<List<FlightInstanceResponse>>> blrSearch = restTemplate.exchange(
+                "/flights/search?source=DEL&destination=BLR&travelDate=" + date,
+                HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
+        Long blrInstanceId = blrSearch.getBody().data().get(0).flightInstanceId();
+
+        // Attempt to book the BOM seat against the BLR flight instance
+        BookingRequest crossRequest = new BookingRequest(
+                1L, blrInstanceId, seatFromBom,
+                new PassengerRequest("Cross Tester", 30, "Male")
+        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Idempotency-Key", "cross-instance-test-001");
+
+        ResponseEntity<ApiResponse<Void>> response = restTemplate.exchange(
+                "/bookings/initiate", HttpMethod.POST,
+                new HttpEntity<>(crossRequest, headers),
+                new ParameterizedTypeReference<>() {});
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
     void searchFlight_returns404_whenAirportCodeInvalid() {
         ResponseEntity<ApiResponse<Void>> response = restTemplate.exchange(
                 "/flights/search?source=XXX&destination=BLR&travelDate=" + LocalDate.now().plusDays(7),

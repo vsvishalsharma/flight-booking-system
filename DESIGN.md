@@ -161,7 +161,7 @@ and no `FlightInstance` exists for `AI202` on `2026-07-10`:
 4. The snapshot is **frozen at creation time**. Subsequent changes to the `Flight` row only affect future FlightInstances, not existing ones.
 
 ### Concurrency Note
-If two concurrent requests try to create the same FlightInstance (same `flightId + travelDate`), the unique constraint `uq_flight_instance` will reject the second insert. In production this would be caught and retried. For this assignment scope, the probability is negligible and the constraint provides correctness.
+If two concurrent requests try to create the same FlightInstance (same `flightId + travelDate`), the unique constraint `uq_flight_instance` will reject the second insert with a constraint violation. No retry logic is implemented — the losing request receives a 500. For this assignment scope the probability is negligible and the constraint guarantees correctness.
 
 ---
 
@@ -196,6 +196,7 @@ BookingService (single @Transactional boundary)
        → check status = AVAILABLE (or HELD with expired holdExpiry)
        → set status = HELD, holdExpiry = now + 10 min
        → atomic UPDATE flight_instances SET available_seats = available_seats - 1
+  2.5 Validate seat.flightInstanceId == request.flightInstanceId → 409 if mismatch
   4. Create Passenger
   5. Create Booking (status = PENDING)
   6. PaymentService.processPayment(bookingId, fare, idempotencyKey)
@@ -270,6 +271,22 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of deviations with reasoning.
 **Benefit**: A seat can be released and re-booked without mutating `bookingId`. Failed bookings still exist in the Booking table without leaving a dangling `bookingId` reference on the Seat.
 
 ---
+
+### Deviation 2 — Booking Owns Passenger (not the reverse)
+
+**Interview design**: `Passenger` carries a `booking_id` FK, making it a child of Booking.  
+**Implementation**: `Booking` stores `passenger_id` as a FK. `Passenger` has no `booking_id` column.
+
+**Why**: Consistent with Deviation 1 — Booking is the owning side of all its associations. The full reservation (user, passenger, flight, seat) is readable from a single `bookings` row without additional joins.
+
+---
+
+### Deviation 3 — `BookingStatus.CANCELLED` replaced by `FAILED`; `expiredAt` field omitted
+
+**Interview design**: BookingStatus values include `Cancelled` and `Expired`. Booking entity has an `expiredat` timestamp.  
+**Implementation**: Status values are `PENDING`, `CONFIRMED`, `FAILED`, `EXPIRED`. `CANCELLED` is absent. `EXPIRED` is defined but never set (no expiry job is in scope). No `expired_at` column exists.
+
+**Why**: `CANCELLED` implies a user-initiated flow with a cancellation endpoint, which is explicitly out of scope. `FAILED` covers the system-driven payment failure path. The expiry job and `expiredAt` field are out of scope for this assignment.
 
 ---
 

@@ -210,6 +210,30 @@ class BookingServiceTest {
     }
 
     @Test
+    void initiateBooking_throwsSeatNotAvailableException_whenSeatBelongsToDifferentFlightInstance() {
+        FlightInstance otherInstance = new FlightInstance();
+        otherInstance.setId(99L); // different from request's flightInstanceId=1
+
+        Seat seatFromOtherInstance = new Seat();
+        seatFromOtherInstance.setId(1L);
+        seatFromOtherInstance.setSeatNumber("2A");
+        seatFromOtherInstance.setStatus(SeatStatus.HELD);
+        seatFromOtherInstance.setFlightInstance(otherInstance);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(flightInstanceRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(flightInstance));
+        when(seatService.holdSeat(1L)).thenReturn(seatFromOtherInstance);
+
+        assertThatThrownBy(() -> bookingService.initiateBooking(request, null))
+                .isInstanceOf(SeatNotAvailableException.class)
+                .hasMessageContaining("does not belong to the requested flight instance");
+
+        verify(passengerRepository, never()).save(any());
+        verify(bookingRepository, never()).save(any());
+        verify(paymentService, never()).processPayment(any(), any(), any());
+    }
+
+    @Test
     void initiateBooking_usesProvidedIdempotencyKey_forPayment() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(flightInstanceRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(flightInstance));

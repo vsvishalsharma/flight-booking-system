@@ -4,9 +4,9 @@
 
 | Category         | Tests | Passed | Failed |
 |------------------|-------|--------|--------|
-| Unit Tests       | 23    | 23     | 0      |
-| Integration Tests| 4     | 4      | 0      |
-| **Total**        | **27**| **27** | **0**  |
+| Unit Tests       | 24    | 24     | 0      |
+| Integration Tests| 5     | 5      | 0      |
+| **Total**        | **29**| **29** | **0**  |
 
 ---
 
@@ -18,7 +18,7 @@
 |---|-------------|---------|-----------------|---------------|--------|
 | 1 | `search_returnsExistingInstances_whenInstancesExistForDate` | Returns existing FlightInstances when found for the requested date | List of FlightInstanceResponse with correct flightNumber, fare, and availableSeats | FlightInstance returned with AI202, ₹5500, 5 seats | ✅ PASS |
 | 2 | `search_createsFlightInstanceLazily_whenNoInstanceExistsForDate` | Creates a new FlightInstance snapshot when none exists for the date | FlightInstance saved with Flight's defaultDepartureTime, defaultFare, totalSeats; Seats generated | Instance created with 22:00 departure, ₹5500, 5 seats; `seatRepository.saveAll` called | ✅ PASS |
-| 3 | `search_snapshotIsImmutable_laterFlightChangesDoNotAffectExistingInstance` | Existing FlightInstance retains original schedule after Flight is modified | Response shows 22:00 departure regardless of Flight mutation | Departure returned as 22:00 (snapshot preserved) | ✅ PASS |
+| 3 | `search_existingFlightInstance_departureTimeFrozenAtSnapshotCreation` | Existing FlightInstance retains original schedule after Flight is modified | Response shows 22:00 even after parent Flight mutated to 06:00 | Departure returned as 22:00; confirmed ≠ Flight's 06:00 | ✅ PASS |
 | 4 | `search_throwsResourceNotFoundException_whenSourceAirportNotFound` | Invalid source airport code throws ResourceNotFoundException | ResourceNotFoundException with "XYZ" in message | Exception thrown with message containing "XYZ" | ✅ PASS |
 | 5 | `search_throwsResourceNotFoundException_whenDestinationAirportNotFound` | Invalid destination airport code throws ResourceNotFoundException | ResourceNotFoundException with "ABC" in message | Exception thrown with message containing "ABC" | ✅ PASS |
 | 6 | `search_returnsEmptyList_whenNoFlightsExistOnRoute` | No flights on route returns empty list | Empty list returned | Empty list returned | ✅ PASS |
@@ -60,6 +60,7 @@
 | 21 | `initiateBooking_throwsResourceNotFoundException_whenUserNotFound` | Invalid userId throws ResourceNotFoundException before any seat logic | ResourceNotFoundException; seatService.holdSeat never called | Exception with "99" thrown, holdSeat never called | ✅ PASS |
 | 22 | `initiateBooking_throwsResourceNotFoundException_whenFlightInstanceNotFound` | Invalid flightInstanceId throws ResourceNotFoundException before seat hold | ResourceNotFoundException; seatService.holdSeat never called | Exception with "99" thrown, holdSeat never called | ✅ PASS |
 | 23 | `initiateBooking_usesProvidedIdempotencyKey_forPayment` | Client-provided X-Idempotency-Key is forwarded to PaymentService | PaymentService called with exact client-provided key | paymentService.processPayment called with "my-custom-key" | ✅ PASS |
+| 24 | `initiateBooking_throwsSeatNotAvailableException_whenSeatBelongsToDifferentFlightInstance` | Seat from a different FlightInstance is rejected with 409 before any Passenger or Booking is created | SeatNotAvailableException thrown, no DB writes | Exception thrown with "does not belong" message | ✅ PASS |
 
 ---
 
@@ -73,6 +74,7 @@
 | IT-2 | `searchFlight_lazyCreatesFlightInstance_whenNoneExistForDate` | Search for a date with no seeded data triggers lazy FlightInstance creation | HTTP 200 with at least one result matching the requested date | FlightInstance created and returned for `now + 60 days` | ✅ PASS |
 | IT-3 | `initiateBooking_returns409_whenSeatAlreadyBooked` | Booking same seat twice results in 409 Conflict on second attempt | Second booking returns HTTP 409 | HTTP 409 returned for duplicate seat booking | ✅ PASS |
 | IT-4 | `searchFlight_returns404_whenAirportCodeInvalid` | Search with non-existent airport code returns 404 | HTTP 404 with error message | HTTP 404 returned for airport "XXX" | ✅ PASS |
+| IT-5 | `initiateBooking_returns409_whenSeatBelongsToDifferentFlightInstance` | Booking a seat from a different FlightInstance returns 409 | HTTP 409 Conflict | HTTP 409 returned; no booking or payment created | ✅ PASS |
 
 ---
 

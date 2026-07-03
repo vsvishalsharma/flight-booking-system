@@ -122,9 +122,13 @@ class SearchServiceTest {
     }
 
     @Test
-    void search_snapshotIsImmutable_laterFlightChangesDoNotAffectExistingInstance() {
-        // The existing FlightInstance has the old departure time (22:00).
-        // Even if Flight is later changed to 23:00, the snapshot remains 22:00.
+    void search_existingFlightInstance_departureTimeFrozenAtSnapshotCreation() {
+        // Prove that SearchService reads departure time from the FlightInstance's own fields,
+        // not from the parent Flight. Mutate the Flight to 06:00 after the snapshot was
+        // already created at 22:00 — the response must still return 22:00.
+        ai202.setDefaultDepartureTime(LocalTime.of(6, 0));   // Flight "updated" to 06:00
+        // fi.departureTime is still 22:00 — it was frozen at snapshot creation time
+
         when(airportRepository.findByCode("DEL")).thenReturn(Optional.of(delhi));
         when(airportRepository.findByCode("BLR")).thenReturn(Optional.of(bangalore));
         when(flightInstanceRepository.findScheduledInstances("DEL", "BLR", travelDate))
@@ -132,8 +136,9 @@ class SearchServiceTest {
 
         List<FlightInstanceResponse> results = searchService.search("DEL", "BLR", travelDate);
 
-        // Snapshot preserves the original 22:00 departure
+        // Response must reflect the snapshot (22:00), not the updated Flight schedule (06:00)
         assertThat(results.get(0).departureTime()).isEqualTo(LocalTime.of(22, 0));
+        assertThat(results.get(0).departureTime()).isNotEqualTo(ai202.getDefaultDepartureTime());
     }
 
     @Test
