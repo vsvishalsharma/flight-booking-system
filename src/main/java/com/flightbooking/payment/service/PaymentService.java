@@ -1,7 +1,6 @@
 package com.flightbooking.payment.service;
 
 import com.flightbooking.payment.entity.Payment;
-import com.flightbooking.payment.entity.PaymentStatus;
 import com.flightbooking.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -34,21 +32,15 @@ public class PaymentService {
     }
 
     private Payment chargeAndPersist(Long bookingId, BigDecimal amount, String idempotencyKey) {
-        Payment payment = new Payment();
-        payment.setBookingId(bookingId);
-        payment.setAmount(amount);
-        payment.setIdempotencyKey(idempotencyKey);
-        payment.setStatus(PaymentStatus.PENDING);
-        payment.setCreatedAt(LocalDateTime.now());
+        Payment payment = new Payment(bookingId, amount, idempotencyKey);
 
         PaymentGatewaySimulator.GatewayResult result = gatewaySimulator.process(amount);
         log.debug("Gateway response for booking {}: success={}", bookingId, result.success());
 
         if (result.success()) {
-            payment.setStatus(PaymentStatus.SUCCESS);
-            payment.setGatewayTransactionId(result.transactionId());
+            payment.markSuccess(result.transactionId());
         } else {
-            payment.setStatus(PaymentStatus.FAILED);
+            payment.markFailed();
         }
 
         return paymentRepository.save(payment);

@@ -7,7 +7,7 @@ import com.flightbooking.flight.repository.AirportRepository;
 import com.flightbooking.flight.repository.FlightInstanceRepository;
 import com.flightbooking.flight.repository.FlightRepository;
 import com.flightbooking.flight.service.SearchService;
-import com.flightbooking.seat.repository.SeatRepository;
+import com.flightbooking.seat.service.SeatService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,7 +32,7 @@ class SearchServiceTest {
     @Mock private FlightInstanceRepository flightInstanceRepository;
     @Mock private FlightRepository flightRepository;
     @Mock private AirportRepository airportRepository;
-    @Mock private SeatRepository seatRepository;
+    @Mock private SeatService seatService;
 
     @InjectMocks private SearchService searchService;
 
@@ -118,7 +118,7 @@ class SearchServiceTest {
         assertThat(results.get(0).availableSeats()).isEqualTo(5);
 
         verify(flightInstanceRepository).save(any(FlightInstance.class));
-        verify(seatRepository).saveAll(anyList());
+        verify(seatService).generateSeats(any(FlightInstance.class), eq(5));
     }
 
     @Test

@@ -3,7 +3,6 @@ package com.flightbooking.booking.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 /**
  * Passenger is created fresh per booking and is NOT the same as User.
@@ -12,7 +11,6 @@ import lombok.Setter;
 @Entity
 @Table(name = "passengers")
 @Getter
-@Setter
 @NoArgsConstructor
 public class Passenger {
 
@@ -28,4 +26,10 @@ public class Passenger {
 
     @Column(nullable = false, length = 20)
     private String gender;
+
+    public Passenger(String name, Integer age, String gender) {
+        this.name = name;
+        this.age = age;
+        this.gender = gender;
+    }
 }

@@ -54,4 +54,21 @@ public class FlightInstance {
 
     @Column(nullable = false)
     private Integer availableSeats;
+
+    /**
+     * Creates a new FlightInstance as a snapshot of the given Flight's current schedule.
+     * The copied fields are frozen at this point — later changes to Flight do not affect
+     * FlightInstances already created.
+     */
+    public static FlightInstance snapshotOf(Flight flight, LocalDate travelDate) {
+        FlightInstance instance = new FlightInstance();
+        instance.flight = flight;
+        instance.travelDate = travelDate;
+        instance.departureTime = flight.getDefaultDepartureTime();
+        instance.arrivalTime = flight.getDefaultArrivalTime();
+        instance.fare = flight.getDefaultFare();
+        instance.status = FlightInstanceStatus.SCHEDULED;
+        instance.availableSeats = flight.getTotalSeats();
+        return instance;
+    }
 }

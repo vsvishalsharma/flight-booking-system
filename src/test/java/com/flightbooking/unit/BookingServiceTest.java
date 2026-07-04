@@ -16,10 +16,8 @@ import com.flightbooking.flight.entity.FlightInstance;
 import com.flightbooking.flight.entity.FlightInstanceStatus;
 import com.flightbooking.flight.repository.FlightInstanceRepository;
 import com.flightbooking.payment.entity.Payment;
-import com.flightbooking.payment.entity.PaymentStatus;
 import com.flightbooking.payment.service.PaymentService;
 import com.flightbooking.seat.entity.Seat;
-import com.flightbooking.seat.entity.SeatStatus;
 import com.flightbooking.seat.service.SeatService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,8 +25,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -86,22 +86,17 @@ class BookingServiceTest {
         flightInstance.setStatus(FlightInstanceStatus.SCHEDULED);
         flightInstance.setAvailableSeats(5);
 
-        seat = new Seat();
-        seat.setId(1L);
-        seat.setSeatNumber("1A");
-        seat.setStatus(SeatStatus.HELD);
-        seat.setFlightInstance(flightInstance);
+        seat = new Seat(flightInstance, "1A");
+        ReflectionTestUtils.setField(seat, "id", 1L);
+        seat.hold(LocalDateTime.now(), Duration.ofMinutes(10));
 
         user = new User();
         user.setId(1L);
         user.setName("Vishal");
         user.setEmail("vishal@example.com");
 
-        passenger = new Passenger();
-        passenger.setId(1L);
-        passenger.setName("Vishal");
-        passenger.setAge(30);
-        passenger.setGender("Male");
+        passenger = new Passenger("Vishal", 30, "Male");
+        ReflectionTestUtils.setField(passenger, "id", 1L);
 
         request = new BookingRequest(1L, 1L, 1L,
                 new PassengerRequest("Vishal", 30, "Male"));
@@ -115,14 +110,13 @@ class BookingServiceTest {
         when(passengerRepository.save(any())).thenReturn(passenger);
         when(bookingRepository.save(any())).thenAnswer(inv -> {
             Booking b = inv.getArgument(0);
-            b.setId(100L);
+            ReflectionTestUtils.setField(b, "id", 100L);
             return b;
         });
 
-        Payment payment = new Payment();
-        payment.setId(1L);
-        payment.setStatus(PaymentStatus.SUCCESS);
-        payment.setGatewayTransactionId("TXN_ABC");
+        Payment payment = new Payment(100L, BigDecimal.valueOf(5500), "idem-key-001");
+        ReflectionTestUtils.setField(payment, "id", 1L);
+        payment.markSuccess("TXN_ABC");
         when(paymentService.processPayment(anyLong(), any(), any())).thenReturn(payment);
 
         BookingResponse response = bookingService.initiateBooking(request, "idem-key-001");
@@ -145,13 +139,13 @@ class BookingServiceTest {
         when(passengerRepository.save(any())).thenReturn(passenger);
         when(bookingRepository.save(any())).thenAnswer(inv -> {
             Booking b = inv.getArgument(0);
-            b.setId(100L);
+            ReflectionTestUtils.setField(b, "id", 100L);
             return b;
         });
 
-        Payment failedPayment = new Payment();
-        failedPayment.setId(2L);
-        failedPayment.setStatus(PaymentStatus.FAILED);
+        Payment failedPayment = new Payment(100L, BigDecimal.valueOf(5500), "idem-key-002");
+        ReflectionTestUtils.setField(failedPayment, "id", 2L);
+        failedPayment.markFailed();
         when(paymentService.processPayment(anyLong(), any(), any())).thenReturn(failedPayment);
 
         BookingResponse response = bookingService.initiateBooking(request, "idem-key-002");
@@ -214,11 +208,9 @@ class BookingServiceTest {
         FlightInstance otherInstance = new FlightInstance();
         otherInstance.setId(99L); // different from request's flightInstanceId=1
 
-        Seat seatFromOtherInstance = new Seat();
-        seatFromOtherInstance.setId(1L);
-        seatFromOtherInstance.setSeatNumber("2A");
-        seatFromOtherInstance.setStatus(SeatStatus.HELD);
-        seatFromOtherInstance.setFlightInstance(otherInstance);
+        Seat seatFromOtherInstance = new Seat(otherInstance, "2A");
+        ReflectionTestUtils.setField(seatFromOtherInstance, "id", 1L);
+        seatFromOtherInstance.hold(LocalDateTime.now(), Duration.ofMinutes(10));
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(flightInstanceRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(flightInstance));
@@ -241,14 +233,13 @@ class BookingServiceTest {
         when(passengerRepository.save(any())).thenReturn(passenger);
         when(bookingRepository.save(any())).thenAnswer(inv -> {
             Booking b = inv.getArgument(0);
-            b.setId(100L);
+            ReflectionTestUtils.setField(b, "id", 100L);
             return b;
         });
 
-        Payment payment = new Payment();
-        payment.setId(1L);
-        payment.setStatus(PaymentStatus.SUCCESS);
-        payment.setGatewayTransactionId("TXN_X");
+        Payment payment = new Payment(100L, BigDecimal.valueOf(5500), "my-custom-key");
+        ReflectionTestUtils.setField(payment, "id", 1L);
+        payment.markSuccess("TXN_X");
         when(paymentService.processPayment(anyLong(), any(), eq("my-custom-key"))).thenReturn(payment);
 
         bookingService.initiateBooking(request, "my-custom-key");

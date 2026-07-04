@@ -3,7 +3,6 @@ package com.flightbooking.payment.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -11,7 +10,6 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "payments")
 @Getter
-@Setter
 @NoArgsConstructor
 public class Payment {
 
@@ -38,4 +36,27 @@ public class Payment {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    public Payment(Long bookingId, BigDecimal amount, String idempotencyKey) {
+        this.bookingId = bookingId;
+        this.amount = amount;
+        this.idempotencyKey = idempotencyKey;
+        this.status = PaymentStatus.PENDING;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public void markSuccess(String gatewayTransactionId) {
+        if (status != PaymentStatus.PENDING) {
+            throw new IllegalStateException("Cannot mark payment " + id + " successful from status " + status);
+        }
+        this.status = PaymentStatus.SUCCESS;
+        this.gatewayTransactionId = gatewayTransactionId;
+    }
+
+    public void markFailed() {
+        if (status != PaymentStatus.PENDING) {
+            throw new IllegalStateException("Cannot mark payment " + id + " failed from status " + status);
+        }
+        this.status = PaymentStatus.FAILED;
+    }
 }

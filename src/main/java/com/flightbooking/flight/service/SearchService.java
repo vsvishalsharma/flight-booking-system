@@ -6,9 +6,7 @@ import com.flightbooking.flight.entity.*;
 import com.flightbooking.flight.repository.AirportRepository;
 import com.flightbooking.flight.repository.FlightInstanceRepository;
 import com.flightbooking.flight.repository.FlightRepository;
-import com.flightbooking.seat.entity.Seat;
-import com.flightbooking.seat.entity.SeatStatus;
-import com.flightbooking.seat.repository.SeatRepository;
+import com.flightbooking.seat.service.SeatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +24,7 @@ public class SearchService {
     private final FlightInstanceRepository flightInstanceRepository;
     private final FlightRepository flightRepository;
     private final AirportRepository airportRepository;
-    private final SeatRepository seatRepository;
+    private final SeatService seatService;
 
     /**
      * Returns scheduled FlightInstances for the given route and date.
@@ -51,7 +49,7 @@ public class SearchService {
         }
 
         return instances.stream()
-                .map(this::toResponse)
+                .map(FlightInstanceResponse::from)
                 .toList();
     }
 
@@ -75,59 +73,10 @@ public class SearchService {
     }
 
     private FlightInstance createInstanceSnapshot(Flight flight, LocalDate travelDate) {
-        FlightInstance instance = new FlightInstance();
-        instance.setFlight(flight);
-        instance.setTravelDate(travelDate);
-        instance.setDepartureTime(flight.getDefaultDepartureTime());
-        instance.setArrivalTime(flight.getDefaultArrivalTime());
-        instance.setFare(flight.getDefaultFare());
-        instance.setStatus(FlightInstanceStatus.SCHEDULED);
-        instance.setAvailableSeats(flight.getTotalSeats());
-
-        FlightInstance saved = flightInstanceRepository.save(instance);
-        createSeatsForInstance(saved, flight.getTotalSeats());
+        FlightInstance saved = flightInstanceRepository.save(FlightInstance.snapshotOf(flight, travelDate));
+        seatService.generateSeats(saved, flight.getTotalSeats());
 
         log.info("Created FlightInstance snapshot: flight={} date={}", flight.getFlightNumber(), travelDate);
         return saved;
-    }
-
-    private void createSeatsForInstance(FlightInstance instance, int totalSeats) {
-        List<Seat> seats = new ArrayList<>(totalSeats);
-        String[] columns = {"A", "B", "C", "D", "E", "F"};
-        int created = 0;
-        int row = 1;
-
-        while (created < totalSeats) {
-            for (String col : columns) {
-                if (created >= totalSeats) break;
-                Seat seat = new Seat();
-                seat.setFlightInstance(instance);
-                seat.setSeatNumber(row + col);
-                seat.setStatus(SeatStatus.AVAILABLE);
-                seats.add(seat);
-                created++;
-            }
-            row++;
-        }
-
-        seatRepository.saveAll(seats);
-    }
-
-    private FlightInstanceResponse toResponse(FlightInstance fi) {
-        Flight flight = fi.getFlight();
-        return new FlightInstanceResponse(
-                fi.getId(),
-                flight.getFlightNumber(),
-                flight.getSourceAirport().getCode(),
-                flight.getSourceAirport().getCity(),
-                flight.getDestinationAirport().getCode(),
-                flight.getDestinationAirport().getCity(),
-                fi.getTravelDate(),
-                fi.getDepartureTime(),
-                fi.getArrivalTime(),
-                fi.getFare(),
-                fi.getStatus().name(),
-                fi.getAvailableSeats()
-        );
     }
 }

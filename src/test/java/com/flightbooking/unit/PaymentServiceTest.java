@@ -10,9 +10,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -38,7 +38,7 @@ class PaymentServiceTest {
                 .thenReturn(new PaymentGatewaySimulator.GatewayResult("TXN123", true));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> {
             Payment p = inv.getArgument(0);
-            p.setId(1L);
+            ReflectionTestUtils.setField(p, "id", 1L);
             return p;
         });
 
@@ -59,7 +59,7 @@ class PaymentServiceTest {
                 .thenReturn(new PaymentGatewaySimulator.GatewayResult(null, false));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> {
             Payment p = inv.getArgument(0);
-            p.setId(2L);
+            ReflectionTestUtils.setField(p, "id", 2L);
             return p;
         });
 
@@ -72,14 +72,9 @@ class PaymentServiceTest {
 
     @Test
     void processPayment_idempotent_returnsSamePaymentOnDuplicateKey() {
-        Payment existingPayment = new Payment();
-        existingPayment.setId(42L);
-        existingPayment.setBookingId(bookingId);
-        existingPayment.setAmount(amount);
-        existingPayment.setStatus(PaymentStatus.SUCCESS);
-        existingPayment.setIdempotencyKey(idempotencyKey);
-        existingPayment.setGatewayTransactionId("EXISTING_TXN");
-        existingPayment.setCreatedAt(LocalDateTime.now().minusMinutes(1));
+        Payment existingPayment = new Payment(bookingId, amount, idempotencyKey);
+        ReflectionTestUtils.setField(existingPayment, "id", 42L);
+        existingPayment.markSuccess("EXISTING_TXN");
 
         when(paymentRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.of(existingPayment));
 
@@ -97,11 +92,9 @@ class PaymentServiceTest {
 
     @Test
     void processPayment_idempotent_preservesFailedPayment() {
-        Payment existingFailed = new Payment();
-        existingFailed.setId(43L);
-        existingFailed.setStatus(PaymentStatus.FAILED);
-        existingFailed.setIdempotencyKey(idempotencyKey);
-        existingFailed.setCreatedAt(LocalDateTime.now());
+        Payment existingFailed = new Payment(bookingId, amount, idempotencyKey);
+        ReflectionTestUtils.setField(existingFailed, "id", 43L);
+        existingFailed.markFailed();
 
         when(paymentRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.of(existingFailed));
 

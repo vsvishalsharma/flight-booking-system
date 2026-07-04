@@ -2,23 +2,27 @@ package com.flightbooking.seat.service;
 
 import com.flightbooking.common.exception.ResourceNotFoundException;
 import com.flightbooking.common.exception.SeatNotAvailableException;
+import com.flightbooking.flight.entity.FlightInstance;
 import com.flightbooking.flight.repository.FlightInstanceRepository;
 import com.flightbooking.seat.entity.Seat;
-import com.flightbooking.seat.entity.SeatStatus;
 import com.flightbooking.seat.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SeatService {
 
-    private static final int HOLD_DURATION_MINUTES = 10;
+    private static final Duration HOLD_DURATION = Duration.ofMinutes(10);
+    private static final String[] SEAT_COLUMNS = {"A", "B", "C", "D", "E", "F"};
 
     private final SeatRepository seatRepository;
     private final FlightInstanceRepository flightInstanceRepository;
@@ -33,18 +37,16 @@ public class SeatService {
         Seat seat = seatRepository.findByIdWithLock(seatId)
                 .orElseThrow(() -> new ResourceNotFoundException("Seat not found: " + seatId));
 
-        if (!isAvailableForHold(seat)) {
-            throw new SeatNotAvailableException(
-                    "Seat " + seat.getSeatNumber() + " is not available (status: " + seat.getStatus() + ")"
-            );
-        }
+        boolean consumesInventory = seat.hold(LocalDateTime.now(), HOLD_DURATION);
 
-        seat.setStatus(SeatStatus.HELD);
-        seat.setHoldExpiry(LocalDateTime.now().plusMinutes(HOLD_DURATION_MINUTES));
-
-        int updated = flightInstanceRepository.decrementAvailableSeats(seat.getFlightInstance().getId());
-        if (updated == 0) {
-            throw new SeatNotAvailableException("No available seats on this flight");
+        // Only decrement when the seat was truly AVAILABLE. Reclaiming an already-expired
+        // hold must not decrement again — the original hold already consumed this unit of
+        // inventory and it was never restored (no background expiry job exists).
+        if (consumesInventory) {
+            int updated = flightInstanceRepository.decrementAvailableSeats(seat.getFlightInstance().getId());
+            if (updated == 0) {
+                throw new SeatNotAvailableException("No available seats on this flight");
+            }
         }
 
         log.debug("Seat {} held until {}", seat.getSeatNumber(), seat.getHoldExpiry());
@@ -60,8 +62,7 @@ public class SeatService {
         Seat seat = seatRepository.findById(seatId)
                 .orElseThrow(() -> new ResourceNotFoundException("Seat not found: " + seatId));
 
-        seat.setStatus(SeatStatus.BOOKED);
-        seat.setHoldExpiry(null);
+        seat.confirm();
 
         log.debug("Seat {} confirmed (BOOKED)", seat.getSeatNumber());
         return seatRepository.save(seat);
@@ -76,25 +77,44 @@ public class SeatService {
         Seat seat = seatRepository.findById(seatId)
                 .orElseThrow(() -> new ResourceNotFoundException("Seat not found: " + seatId));
 
-        seat.setStatus(SeatStatus.AVAILABLE);
-        seat.setHoldExpiry(null);
-
+        seat.release();
         flightInstanceRepository.incrementAvailableSeats(seat.getFlightInstance().getId());
 
         log.debug("Seat {} released back to AVAILABLE", seat.getSeatNumber());
         return seatRepository.save(seat);
     }
 
-    private boolean isAvailableForHold(Seat seat) {
-        if (seat.getStatus() == SeatStatus.AVAILABLE) {
-            return true;
+    /**
+     * Generates and persists the seat inventory for a newly created FlightInstance.
+     * Owned by the seat module — callers (e.g. SearchService) must not touch SeatRepository directly.
+     */
+    @Transactional
+    public List<Seat> generateSeats(FlightInstance instance, int totalSeats) {
+        List<Seat> seats = new ArrayList<>(totalSeats);
+        int created = 0;
+        int row = 1;
+
+        while (created < totalSeats) {
+            for (String column : SEAT_COLUMNS) {
+                if (created >= totalSeats) {
+                    break;
+                }
+                seats.add(new Seat(instance, row + column));
+                created++;
+            }
+            row++;
         }
-        // A held seat with an expired hold can be reclaimed
-        if (seat.getStatus() == SeatStatus.HELD
-                && seat.getHoldExpiry() != null
-                && seat.getHoldExpiry().isBefore(LocalDateTime.now())) {
-            return true;
+
+        return seatRepository.saveAll(seats);
+    }
+
+    /**
+     * Returns all seats for a flight instance.
+     */
+    public List<Seat> findByFlightInstanceId(Long flightInstanceId) {
+        if (!flightInstanceRepository.existsById(flightInstanceId)) {
+            throw new ResourceNotFoundException("FlightInstance not found: " + flightInstanceId);
         }
-        return false;
+        return seatRepository.findByFlightInstanceId(flightInstanceId);
     }
 }

@@ -1,5 +1,8 @@
 package com.flightbooking.flight.dto;
 
+import com.flightbooking.flight.entity.Flight;
+import com.flightbooking.flight.entity.FlightInstance;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -18,4 +21,22 @@ public record FlightInstanceResponse(
         String status,
         Integer availableSeats
 ) {
+
+    public static FlightInstanceResponse from(FlightInstance flightInstance) {
+        Flight flight = flightInstance.getFlight();
+        return new FlightInstanceResponse(
+                flightInstance.getId(),
+                flight.getFlightNumber(),
+                flight.getSourceAirport().getCode(),
+                flight.getSourceAirport().getCity(),
+                flight.getDestinationAirport().getCode(),
+                flight.getDestinationAirport().getCity(),
+                flightInstance.getTravelDate(),
+                flightInstance.getDepartureTime(),
+                flightInstance.getArrivalTime(),
+                flightInstance.getFare(),
+                flightInstance.getStatus().name(),
+                flightInstance.getAvailableSeats()
+        );
+    }
 }

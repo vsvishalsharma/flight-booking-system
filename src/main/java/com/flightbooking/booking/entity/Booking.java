@@ -4,7 +4,6 @@ import com.flightbooking.flight.entity.FlightInstance;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,7 +20,6 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "bookings")
 @Getter
-@Setter
 @NoArgsConstructor
 public class Booking {
 
@@ -54,4 +52,28 @@ public class Booking {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    public Booking(User user, Passenger passenger, FlightInstance flightInstance, Long seatId, BigDecimal fare) {
+        this.user = user;
+        this.passenger = passenger;
+        this.flightInstance = flightInstance;
+        this.seatId = seatId;
+        this.fare = fare;
+        this.status = BookingStatus.PENDING;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public void confirm() {
+        if (status != BookingStatus.PENDING) {
+            throw new IllegalStateException("Cannot confirm booking " + id + " from status " + status);
+        }
+        this.status = BookingStatus.CONFIRMED;
+    }
+
+    public void fail() {
+        if (status != BookingStatus.PENDING) {
+            throw new IllegalStateException("Cannot fail booking " + id + " from status " + status);
+        }
+        this.status = BookingStatus.FAILED;
+    }
 }

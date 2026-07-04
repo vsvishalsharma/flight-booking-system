@@ -45,6 +45,33 @@ com.flightbooking
 
 ---
 
+## Domain Model: Rich Entities, Not Anemic DTOs
+
+Entities with real lifecycles own their own state transitions instead of exposing blanket setters
+for services to mutate directly:
+
+- `Seat.hold()/confirm()/release()/isHoldable()` — the AVAILABLE → HELD → BOOKED state machine
+  lives on Seat itself. `hold()` reports whether the transition consumes a fresh unit of seat
+  inventory (seat was AVAILABLE) or merely reclaims an already-expired hold — see the concurrency
+  note under FlightInstance Creation Strategy for why this distinction matters.
+- `Booking` is constructed via `new Booking(user, passenger, flightInstance, seatId, fare)`, which
+  enforces the invariant that a booking always starts `PENDING` with a `createdAt` timestamp.
+  `confirm()`/`fail()` guard against double transitions.
+- `Payment` is constructed via `new Payment(bookingId, amount, idempotencyKey)` (always `PENDING`)
+  and finalized via `markSuccess(transactionId)`/`markFailed()`.
+- `FlightInstance.snapshotOf(flight, travelDate)` centralizes the snapshot-copy invariant described
+  below, rather than leaving callers to copy five fields by hand.
+
+This is safe because JPA field-level annotations are used throughout (`@Column` on fields, not
+getters), so Hibernate populates entities via reflection — public setters were never required for
+persistence, only for business code to mutate state without going through invariants.
+
+Pure reference data with no lifecycle (`Airport`, `User`, `Flight`) is left as simple `@Getter/@Setter`
+records — there is no state machine to protect and no application code ever constructs them (they are
+seeded by Flyway), so encapsulating them further would add ceremony without reducing risk.
+
+---
+
 ## Entity Model
 
 ### Airport
@@ -252,7 +279,7 @@ BookingService (single @Transactional boundary)
 3. **User must exist** — user creation is out of scope; users are seeded.
 4. **No cancellations or refunds** — a CONFIRMED booking is final.
 5. **No dynamic seat assignment** — the client chooses the specific seat; no auto-assign.
-6. **Seat hold TTL** — holds expire after 10 minutes. In this synchronous implementation the hold and payment happen atomically, so the TTL guards only against abandoned partial flows.
+6. **Seat hold TTL** — holds expire after 10 minutes. In this synchronous implementation the hold and payment happen atomically, so the TTL guards only against abandoned partial flows. Since there is no background expiry job, `SeatService.holdSeat()` only decrements `FlightInstance.availableSeats` when a seat transitions from AVAILABLE. Reclaiming an already-expired hold does **not** decrement it again — the original hold already consumed that unit of inventory and it was never restored. This is enforced by `Seat.hold()`, which reports whether the transition consumed fresh inventory.
 7. **Payment gateway** — simulated synchronously; always returns SUCCESS in production code. Tests mock it to exercise failure paths.
 
 ---
