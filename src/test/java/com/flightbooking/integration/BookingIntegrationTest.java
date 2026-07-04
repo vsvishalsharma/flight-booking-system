@@ -9,6 +9,7 @@ import com.flightbooking.booking.dto.PassengerRequest;
 import com.flightbooking.flight.dto.FlightInstanceResponse;
 import com.flightbooking.payment.entity.PaymentStatus;
 import com.flightbooking.payment.repository.PaymentRepository;
+import com.flightbooking.seat.dto.SeatResponse;
 import com.flightbooking.seat.entity.SeatStatus;
 import com.flightbooking.seat.repository.SeatRepository;
 import org.junit.jupiter.api.Test;
@@ -244,6 +245,32 @@ class BookingIntegrationTest {
     void searchFlight_returns404_whenAirportCodeInvalid() {
         ResponseEntity<ApiResponse<Void>> response = restTemplate.exchange(
                 "/flights/search?source=XXX&destination=BLR&travelDate=" + LocalDate.now().plusDays(7),
+                HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void listSeats_returnsSeatInventory_forExistingFlightInstance() {
+        LocalDate date = LocalDate.now().plusDays(7);
+        ResponseEntity<ApiResponse<List<FlightInstanceResponse>>> searchResponse = restTemplate.exchange(
+                "/flights/search?source=DEL&destination=BLR&travelDate=" + date,
+                HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
+        Long flightInstanceId = searchResponse.getBody().data().get(0).flightInstanceId();
+
+        ResponseEntity<ApiResponse<List<SeatResponse>>> response = restTemplate.exchange(
+                "/flights/" + flightInstanceId + "/seats",
+                HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().data()).isNotEmpty();
+        assertThat(response.getBody().data()).allMatch(seat -> seat.seatNumber() != null && seat.status() != null);
+    }
+
+    @Test
+    void listSeats_returns404_whenFlightInstanceDoesNotExist() {
+        ResponseEntity<ApiResponse<Void>> response = restTemplate.exchange(
+                "/flights/999999/seats",
                 HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);

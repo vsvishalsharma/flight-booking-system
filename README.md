@@ -132,7 +132,30 @@ GET /flights/search
 
 ---
 
-### 2. Initiate Booking
+### 2. List Seats for a Flight Instance
+
+```
+GET /flights/{flightInstanceId}/seats
+```
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Success",
+  "data": [
+    { "seatId": 3, "seatNumber": "1A", "status": "AVAILABLE" },
+    { "seatId": 4, "seatNumber": "1B", "status": "BOOKED" }
+  ]
+}
+```
+
+Returns `404` if the flight instance does not exist.
+
+---
+
+### 3. Initiate Booking
 
 ```
 POST /bookings/initiate
@@ -225,10 +248,9 @@ POST /bookings/initiate
 curl "http://localhost:8082/flights/search?source=DEL&destination=BLR&travelDate=$(date -d '+7 days' +%Y-%m-%d)"
 ```
 
-**Get seat IDs for a flight instance** (replace `1` with the `flightInstanceId` from search):
+**List seats for a flight instance** (replace `1` with the `flightInstanceId` from search):
 ```bash
-# Connect to PostgreSQL and run:
-SELECT id, seat_number, status FROM seats WHERE flight_instance_id = 1 AND status = 'AVAILABLE';
+curl "http://localhost:8082/flights/1/seats"
 ```
 
 **Initiate booking**
